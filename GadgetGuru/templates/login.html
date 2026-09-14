@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Log In — GadgetGuru{% endblock %}
+
+{% block content %}
+<div class="form-card">
+  <h1>Welcome back</h1>
+  <p class="form-sub">Log in to view your orders, manage your store, or check out.</p>
+  <form method="post">
+    <div class="field">
+      <label for="email">Email address</label>
+      <input type="email" id="email" name="email" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required>
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Log In</button>
+  </form>
+  <div class="form-foot">New to GadgetGuru? <a href="{{ url_for('signup') }}">Create an account</a></div>
+</div>
+{% endblock %}

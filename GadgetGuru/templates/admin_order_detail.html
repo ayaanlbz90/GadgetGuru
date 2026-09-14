@@ -1,0 +1,57 @@
+{% extends "admin_base.html" %}
+{% block title %}Order {{ order['receipt_no'] }} — GadgetGuru Admin{% endblock %}
+
+{% block admin_content %}
+<div class="admin-header">
+  <h1>Order {{ order['receipt_no'] }}</h1>
+  <a href="{{ url_for('admin_orders') }}" class="btn btn-outline btn-sm">← Back to Orders</a>
+</div>
+
+<div class="cart-layout">
+  <div>
+    <div class="panel">
+      <h3>Items</h3>
+      {% for item in items %}
+      <div class="receipt-item" style="font-size:0.95rem;"><span>{{ item['product_name'] }} × {{ item['quantity'] }}</span><span>₹{{ "%.0f"|format(item['price'] * item['quantity']) }}</span></div>
+      {% endfor %}
+      <div class="receipt-divider"></div>
+      <div class="receipt-total"><span>Total</span><span>₹{{ "%.0f"|format(order['total_amount']) }}</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Customer Details</h3>
+      <div class="receipt-row"><span class="label">Name</span><span>{{ order['customer_name'] }}</span></div>
+      <div class="receipt-row"><span class="label">Email</span><span>{{ order['customer_email'] }}</span></div>
+      <div class="receipt-row"><span class="label">Phone</span><span>{{ order['customer_phone'] or order['shipping_phone'] }}</span></div>
+      <div class="receipt-row"><span class="label">Registered Address</span><span style="text-align:right; max-width:60%;">{{ order['customer_address'] or '—' }}</span></div>
+      <div class="receipt-divider"></div>
+      <div class="receipt-row"><span class="label">Shipping Name</span><span>{{ order['shipping_name'] }}</span></div>
+      <div class="receipt-row"><span class="label">Shipping Phone</span><span>{{ order['shipping_phone'] }}</span></div>
+      <div class="receipt-row"><span class="label">Shipping Address</span><span style="text-align:right; max-width:60%;">{{ order['shipping_address'] }}</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Update Order</h3>
+    <form method="post" action="{{ url_for('admin_update_order', order_id=order['id']) }}">
+      <div class="field">
+        <label for="payment_status">Payment Status</label>
+        <select id="payment_status" name="payment_status">
+          {% for status in ['Pending', 'Awaiting Verification', 'Paid', 'Failed'] %}
+          <option value="{{ status }}" {% if order['payment_status'] == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="order_status">Order Status</label>
+        <select id="order_status" name="order_status">
+          {% for status in ['Processing', 'Shipped', 'Delivered', 'Cancelled'] %}
+          <option value="{{ status }}" {% if order['order_status'] == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Update Order</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Create Account — GadgetGuru{% endblock %}
+
+{% block content %}
+<div class="form-card">
+  <h1>Create your account</h1>
+  <p class="form-sub">Join GadgetGuru to track orders and check out faster.</p>
+  <form method="post">
+    <div class="field">
+      <label for="name">Full name</label>
+      <input type="text" id="name" name="name" required>
+    </div>
+    <div class="field">
+      <label for="email">Email address</label>
+      <input type="email" id="email" name="email" required>
+    </div>
+    <div class="field">
+      <label for="phone">Phone number</label>
+      <input type="tel" id="phone" name="phone" placeholder="+91 9XXXXXXXXX">
+    </div>
+    <div class="field">
+      <label for="address">Delivery address</label>
+      <textarea id="address" name="address" rows="2"></textarea>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required>
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+  </form>
+  <div class="form-foot">Already have an account? <a href="{{ url_for('login') }}">Log in</a></div>
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}GadgetGuru — Tech that keeps up{% endblock %}
+
+{% block content %}
+
+{% if not search_query %}
+<section class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-eyebrow">NEW DROPS WEEKLY</div>
+      <h1>Gadgets built for your everyday hustle.</h1>
+      <p>From earbuds to power banks, GadgetGuru curates tech that's fast, reliable, and priced fairly — with UPI checkout in seconds.</p>
+      <div class="hero-actions">
+        <a href="#shop" class="btn btn-primary">Shop the collection</a>
+        <a href="https://wa.me/{{ whatsapp_number }}" target="_blank" rel="noopener" class="btn btn-outline-white">Ask us on WhatsApp</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <img src="{{ url_for('static', filename='images/logo.svg') }}" class="logo-mark" alt="GadgetGuru">
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section container" id="shop">
+  <div class="section-head">
+    <div>
+      <h2>{% if search_query %}Search results for "{{ search_query }}"{% else %}All Products{% endif %}</h2>
+      <p>{{ products|length }} item{{ 's' if products|length != 1 else '' }} found</p>
+    </div>
+  </div>
+
+  {% if categories %}
+  <div class="chip-row">
+    <button class="chip active" data-category-chip="all">All</button>
+    {% for cat in categories %}
+    <button class="chip" data-category-chip="{{ cat }}">{{ cat }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if products %}
+  <div class="product-grid">
+    {% for product in products %}
+    <div class="product-card" data-product-card data-category="{{ product['category'] }}">
+      <a href="{{ url_for('product_detail', product_id=product['id']) }}">
+        <div class="product-thumb">
+          {% if product['image_filename'] %}
+          <img src="{{ url_for('static', filename='uploads/' + product['image_filename']) }}" alt="{{ product['name'] }}">
+          {% else %}
+          <div class="no-image">No image yet</div>
+          {% endif %}
+          {% if product['stock'] <= 5 and product['stock'] > 0 %}<span class="product-badge">Low Stock</span>{% endif %}
+          {% if product['stock'] == 0 %}<span class="product-badge">Sold Out</span>{% endif %}
+        </div>
+      </a>
+      <div class="product-info">
+        {% if product['category'] %}<div class="product-cat">{{ product['category'] }}</div>{% endif %}
+        <a href="{{ url_for('product_detail', product_id=product['id']) }}">
+          <div class="product-name">{{ product['name'] }}</div>
+        </a>
+        <div class="product-desc">{{ product['description'][:70] }}{% if product['description']|length > 70 %}…{% endif %}</div>
+        <div class="product-foot">
+          <div class="product-price">₹{{ "%.0f"|format(product['price']) }}</div>
+          <form action="{{ url_for('add_to_cart', product_id=product['id']) }}" method="post">
+            <input type="hidden" name="quantity" value="1">
+            <button class="add-cart-btn" type="submit" aria-label="Add to cart" {% if product['stock'] == 0 %}disabled{% endif %}>
+              <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" width="18" height="18"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+    <p>No products found. {% if search_query %}Try a different search term.{% endif %}</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

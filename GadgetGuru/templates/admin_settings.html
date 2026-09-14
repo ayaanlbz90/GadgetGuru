@@ -1,0 +1,29 @@
+{% extends "admin_base.html" %}
+{% block title %}Payment Settings — GadgetGuru Admin{% endblock %}
+
+{% block admin_content %}
+<div class="admin-header"><h1>Payment &amp; Contact Settings</h1></div>
+
+<div class="panel" style="max-width:640px;">
+  <h3>UPI Payment</h3>
+  <div class="receipt-row"><span class="label">Current UPI ID</span><span>{{ upi_id }}</span></div>
+  <div class="receipt-row"><span class="label">Payee Name</span><span>{{ payee_name }}</span></div>
+  <p class="field-hint" style="margin-top:12px;">
+    To change these, open <code>app.py</code> and edit the <code>UPI_ID</code> and
+    <code>PAYEE_NAME</code> variables near the top of the file. The checkout QR
+    code is generated automatically from these values — no image upload needed.
+    If you'd rather use your bank's own QR image, set <code>USE_CUSTOM_QR_IMAGE = True</code>
+    and place your image at <code>static/images/my_upi_qr.png</code>.
+  </p>
+</div>
+
+<div class="panel" style="max-width:640px;">
+  <h3>WhatsApp Chat Button</h3>
+  <div class="receipt-row"><span class="label">Current Number</span><span>+{{ whatsapp_number }}</span></div>
+  <p class="field-hint" style="margin-top:12px;">
+    To change the number the floating WhatsApp button messages, edit
+    <code>WHATSAPP_NUMBER</code> in <code>app.py</code> (include the country code,
+    digits only, no + or spaces).
+  </p>
+</div>
+{% endblock %}
