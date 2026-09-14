@@ -1,29 +1,48 @@
 {% extends "admin_base.html" %}
-{% block title %}Orders — GadgetGuru Admin{% endblock %}
+{% block title %}Manage Orders — GadgetGuru{% endblock %}
 
 {% block admin_content %}
-<div class="admin-header"><h1>Orders</h1></div>
-
-{% if orders %}
-<div class="table-card">
-  <table class="data-table">
-    <thead><tr><th>Receipt</th><th>Customer</th><th>Date</th><th>Amount</th><th>Payment</th><th>Status</th><th></th></tr></thead>
-    <tbody>
-      {% for order in orders %}
-      <tr>
-        <td>{{ order['receipt_no'] }}</td>
-        <td>{{ order['customer_name'] }}<br><span style="color:var(--steel-dark); font-size:0.78rem;">{{ order['customer_email'] }}</span></td>
-        <td>{{ order['order_date'][:10] }}</td>
-        <td>₹{{ "%.0f"|format(order['total_amount']) }}</td>
-        <td><span class="status-pill status-{{ order['payment_status']|lower|replace(' ', '-') }}">{{ order['payment_status'] }}</span></td>
-        <td><span class="status-pill status-{{ order['order_status']|lower|replace(' ', '-') }}">{{ order['order_status'] }}</span></td>
-        <td><a href="{{ url_for('admin_order_detail', order_id=order['id']) }}" class="btn btn-outline btn-sm">View</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="admin-header">
+  <h1>Orders</h1>
 </div>
-{% else %}
-<div class="empty-state"><p>No orders placed yet.</p></div>
-{% endif %}
+
+<div class="panel">
+  {% if orders %}
+  <div class="table-card" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Receipt</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th>Amount</th>
+          <th>Payment</th>
+          <th>Status</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in orders %}
+        <tr>
+          <td><strong>{{ order['receipt_no'] }}</strong></td>
+          <td>
+            {{ order['customer_name'] }}<br>
+            <span style="color: #718096; font-size: 0.78rem;">{{ order['customer_email'] }}</span>
+          </td>
+          <td style="white-space: nowrap;">{{ order['created_at'] }}</td>
+          <td>₹{{ "%.0f"|format(order['total_amount']) }}</td>
+          <td><span class="status-pill status-{{ order['payment_status']|lower|replace(' ', '-') }}">{{ order['payment_status'] }}</span></td>
+          <td><span class="status-pill status-{{ order['order_status']|lower|replace(' ', '-') }}">{{ order['order_status'] }}</span></td>
+          <td style="text-align: right;">
+            <a href="{{ url_for('admin_order_detail', order_id=order['id']) }}" class="btn btn-outline btn-sm">View</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p style="color: #718096;">No orders found.</p>
+  {% endif %}
+</div>
 {% endblock %}

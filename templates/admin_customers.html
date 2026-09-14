@@ -1,29 +1,39 @@
 {% extends "admin_base.html" %}
-{% block title %}Customers — GadgetGuru Admin{% endblock %}
+{% block title %}Registered Customers — GadgetGuru{% endblock %}
 
 {% block admin_content %}
-<div class="admin-header"><h1>Customers</h1></div>
-
-{% if customers %}
-<div class="table-card">
-  <table class="data-table">
-    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Address</th><th>Orders</th><th>Total Spent</th><th>Joined</th></tr></thead>
-    <tbody>
-      {% for c in customers %}
-      <tr>
-        <td>{{ c.user['name'] }}</td>
-        <td>{{ c.user['email'] }}</td>
-        <td>{{ c.user['phone'] or '—' }}</td>
-        <td>{{ c.user['address'] or '—' }}</td>
-        <td>{{ c.order_count }}</td>
-        <td>₹{{ "%.0f"|format(c.total_spent) }}</td>
-        <td>{{ c.user['created_at'][:10] }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="admin-header">
+  <h1>Customers</h1>
 </div>
-{% else %}
-<div class="empty-state"><p>No customers have registered yet.</p></div>
-{% endif %}
+
+<div class="panel">
+  {% if customers %}
+  <div class="table-card" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Joined</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in customers %}
+        <tr>
+          <td>#{{ user['id'] }}</td>
+          <td><strong>{{ user['name'] }}</strong></td>
+          <td>{{ user['email'] }}</td>
+          <td>{{ user['phone'] or 'N/A' }}</td>
+          <td style="white-space: nowrap;">{{ user['created_at'] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p style="color: #718096;">No registered customers yet.</p>
+  {% endif %}
+</div>
 {% endblock %}
