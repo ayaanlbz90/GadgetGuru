@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}GadgetGuru — Tech that keeps up{% endblock %}</title>
+<link rel="icon" href="{{ url_for('static', filename='images/logo.svg') }}" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav-wrap">
+    <a href="{{ url_for('index') }}" class="logo">
+      <img src="{{ url_for('static', filename='images/logo.svg') }}" class="logo-mark" alt="GadgetGuru logo">
+      <span class="logo-text">Gadget<span>Guru</span></span>
+    </a>
+
+    <nav class="nav-desktop">
+      <div class="nav-links">
+        <a href="{{ url_for('index') }}">Home</a>
+		<a href="#shop">Shop</a>
+		<a href="{{ url_for('about') }}">About</a>
+        {% if is_logged_in %}
+        <a href="{{ url_for('my_orders') }}">My Orders</a>
+        {% endif %}
+        {% if is_admin %}
+        <a href="{{ url_for('admin_dashboard') }}" class="admin-link">Admin Panel</a>
+        {% endif %}
+      </div>
+      <form class="nav-search" action="{{ url_for('search') }}" method="get">
+        <svg fill="none" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+        <input type="text" name="q" placeholder="Search gadgets…" value="{{ search_query|default('') }}">
+      </form>
+    </nav>
+
+    <div class="nav-actions">
+      <a href="{{ url_for('cart') }}" class="icon-btn" aria-label="Cart">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M6 6h15l-1.5 9h-12z" stroke-linejoin="round"/><path d="M6 6L4.5 3H2" stroke-linecap="round"/><circle cx="9" cy="20" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="20" r="1.4" fill="currentColor" stroke="none"/></svg>
+        {% if cart_count > 0 %}<span class="cart-badge">{{ cart_count }}</span>{% endif %}
+      </a>
+      {% if is_logged_in %}
+      <a href="{{ url_for('logout') }}" class="icon-btn" aria-label="Log out" title="Log out ({{ current_user_name }})">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M15 17l5-5-5-5M20 12H9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 19H6a2 2 0 01-2-2V7a2 2 0 012-2h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      {% else %}
+      <a href="{{ url_for('login') }}" class="icon-btn" aria-label="Log in">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke-linecap="round"/></svg>
+      </a>
+      {% endif %}
+      <button class="hamburger-btn" id="hamburgerBtn" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile menu: distinct full-panel style from the desktop nav -->
+<div class="mobile-menu-overlay" id="mobileOverlay"></div>
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu-top">
+    <span class="logo-text">Gadget<span>Guru</span></span>
+    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">✕</button>
+  </div>
+  <form class="mobile-menu-search" action="{{ url_for('search') }}" method="get">
+    <input type="text" name="q" placeholder="Search gadgets…">
+  </form>
+  <div class="mobile-menu-links">
+	<a href="{{ url_for('about') }}">About <span>→</span></a>
+    <a href="{{ url_for('index') }}">Shop <span>→</span></a>
+    <a href="{{ url_for('cart') }}">Cart {% if cart_count > 0 %}({{ cart_count }}){% endif %} <span>→</span></a>
+    {% if is_logged_in %}
+    <a href="{{ url_for('my_orders') }}">My Orders <span>→</span></a>
+    <a href="{{ url_for('logout') }}">Log Out <span>→</span></a>
+    {% else %}
+    <a href="{{ url_for('login') }}">Log In <span>→</span></a>
+    <a href="{{ url_for('signup') }}">Sign Up <span>→</span></a>
+    {% endif %}
+    {% if is_admin %}
+    <a href="{{ url_for('admin_dashboard') }}" class="admin-link">Admin Panel <span>→</span></a>
+    {% else %}
+    <a href="{{ url_for('login') }}" class="admin-link">Admin Login <span>→</span></a>
+    {% endif %}
+  </div>
+  <div class="mobile-menu-foot">
+    Need help? <a href="https://wa.me/{{ whatsapp_number }}" target="_blank" rel="noopener">Chat with us on WhatsApp</a>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-wrap" id="flashWrap">
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="logo" style="margin-bottom:14px;">
+          <img src="{{ url_for('static', filename='images/logo.svg') }}" class="logo-mark" alt="GadgetGuru logo">
+          <span class="logo-text" style="color:#fff;">Gadget<span>Guru</span></span>
+        </div>
+        <p>Curated gadgets and accessories for people who like their tech fast, reliable, and a little bit fun.</p>
+      </div>
+      <div>
+        <h4>Shop</h4>
+        <a href="{{ url_for('index') }}">All Products</a>
+        <a href="{{ url_for('cart') }}">Your Cart</a>
+      </div>
+      <div>
+        <h4>Account</h4>
+        {% if is_logged_in %}
+        <a href="{{ url_for('my_orders') }}">My Orders</a>
+        <a href="{{ url_for('logout') }}">Log Out</a>
+        {% else %}
+        <a href="{{ url_for('login') }}">Log In</a>
+        <a href="{{ url_for('signup') }}">Create Account</a>
+        {% endif %}
+      </div>
+      <div>
+        <h4>Support</h4>
+        <a href="https://wa.me/{{ whatsapp_number }}" target="_blank" rel="noopener">WhatsApp Us</a>
+		<a href="{{ url_for('about') }}">About Us</a>
+			
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; {{ 2026 }} GadgetGuru. All rights reserved.</span>
+      <span>Owner: Roman Shaikh/Imroz Shaikh</span>
+	  <span>Devloped By Ayaan Shaikh</span>
+    </div>
+  </div>
+</footer>
+
+<!-- WhatsApp floating chat button -->
+<a class="whatsapp-float" href="https://wa.me/{{ whatsapp_number }}?text={{ whatsapp_msg|urlencode }}" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
+  <svg viewBox="0 0 32 32"><path d="M16.001 3C9.373 3 4 8.373 4 15c0 2.386.7 4.61 1.912 6.484L4 29l7.719-1.87A11.94 11.94 0 0016 27c6.627 0 12-5.373 12-12S22.628 3 16.001 3zm.001 21.75c-1.97 0-3.83-.52-5.44-1.42l-.39-.22-4.58 1.11 1.13-4.47-.25-.4A9.72 9.72 0 016.25 15c0-5.38 4.37-9.75 9.75-9.75S25.75 9.62 25.75 15 21.38 24.75 16.002 24.75zm5.44-7.32c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.24-.46-2.36-1.46-.87-.78-1.46-1.73-1.63-2.03-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51-.17-.01-.37-.01-.57-.01s-.52.07-.79.37c-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.22 3.07c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.42.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35z"/></svg>
+</a>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

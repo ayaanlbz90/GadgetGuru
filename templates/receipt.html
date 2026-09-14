@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Receipt — GadgetGuru{% endblock %}
+
+{% block content %}
+<section class="section container">
+  <div class="receipt-card" id="receiptPrintArea">
+    <div class="receipt-head">
+      <div class="check-circle">
+        <svg fill="none" stroke-width="2.4" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h2 style="color:#fff; margin-bottom:4px;">Order Placed!</h2>
+      <div style="opacity:0.9; font-size:0.9rem;">Receipt No: {{ order['receipt_no'] }}</div>
+    </div>
+    <div class="receipt-body">
+      <div class="receipt-row"><span class="label">Order Date</span><span>{{ order['order_date'][:16].replace('T', ' ') }}</span></div>
+      <div class="receipt-row"><span class="label">Payment Method</span><span>{{ order['payment_method'] }}</span></div>
+      <div class="receipt-row"><span class="label">Payment Status</span>
+        <span class="status-pill status-{{ order['payment_status']|lower|replace(' ', '-') }}">{{ order['payment_status'] }}</span>
+      </div>
+      <div class="receipt-row"><span class="label">Order Status</span>
+        <span class="status-pill status-{{ order['order_status']|lower|replace(' ', '-') }}">{{ order['order_status'] }}</span>
+      </div>
+      <div class="receipt-row"><span class="label">Deliver To</span><span>{{ order['shipping_name'] }}</span></div>
+      <div class="receipt-row"><span class="label">Address</span><span style="text-align:right; max-width:60%;">{{ order['shipping_address'] }}</span></div>
+
+      <div class="receipt-divider"></div>
+      <strong style="font-size:0.85rem;">Items</strong>
+      {% for item in items %}
+      <div class="receipt-item"><span>{{ item['product_name'] }} × {{ item['quantity'] }}</span><span>₹{{ "%.0f"|format(item['price'] * item['quantity']) }}</span></div>
+      {% endfor %}
+      <div class="receipt-divider"></div>
+      <div class="receipt-total"><span>Total Paid</span><span>₹{{ "%.0f"|format(order['total_amount']) }}</span></div>
+    </div>
+    <div class="receipt-actions">
+      <button onclick="window.print()" class="btn btn-outline btn-block">Print Receipt</button>
+      <a href="{{ url_for('index') }}" class="btn btn-primary btn-block">Continue Shopping</a>
+    </div>
+  </div>
+</section>
+
+<style>
+@media print {
+  header, footer, .whatsapp-float, .flash-wrap, .receipt-actions { display: none !important; }
+  body { background: #fff; }
+}
+</style>
+{% endblock %}

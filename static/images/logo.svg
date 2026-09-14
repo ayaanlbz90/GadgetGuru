@@ -1,0 +1,27 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GadgetGuru logo">
+  <!-- Outer G -->
+  <path d="M50 6
+           A44 44 0 1 0 88 68
+           L88 46
+           L54 46
+           L54 60
+           L74 60
+           A30 30 0 1 1 50 20
+           A29.6 29.6 0 0 1 71 29
+           L80.5 19.5
+           A44 44 0 0 0 50 6 Z"
+        fill="#E31B23"/>
+  <!-- Inner G (smaller, offset inside the outer G's counter, white on red board) -->
+  <circle cx="50" cy="50" r="16" fill="#FFFFFF"/>
+  <path d="M50 38
+           A12 12 0 1 0 61.5 55.5
+           L61.5 47.5
+           L50.5 47.5
+           L50.5 51.8
+           L56.5 51.8
+           A8 8 0 1 1 50 42
+           A7.9 7.9 0 0 1 55.2 44
+           L58.2 41
+           A12 12 0 0 0 50 38 Z"
+        fill="#E31B23"/>
+</svg>
