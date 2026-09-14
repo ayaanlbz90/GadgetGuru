@@ -79,10 +79,11 @@ img {
 .pd-image img,
 .cart-line img,
 .table-thumb {
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* Keeps aspect ratio while filling container */
-  object-position: center;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  background-color: var(--steel-light, #f1f5f9);
   display: block;
 }
 
@@ -1706,7 +1707,22 @@ ul {
    ========================================================================== */
 @media (max-width: 980px) {
   .nav-desktop { display: none; }
-  .hamburger-btn { display: flex; }
+  .hamburger-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.hamburger-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+}
   .hero-inner { grid-template-columns: 1fr; text-align: center; padding: 56px 24px 64px; }
   .hero-actions { justify-content: center; }
   .hero-visual .logo-mark { width: 160px; height: 160px; margin: 0 auto; }

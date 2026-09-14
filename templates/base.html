@@ -22,8 +22,8 @@
     <nav class="nav-desktop">
       <div class="nav-links">
         <a href="{{ url_for('index') }}">Home</a>
-		<a href="#shop">Shop</a>
-		<a href="{{ url_for('about') }}">About</a>
+        <a href="#shop">Shop</a>
+        <a href="{{ url_for('about') }}">About</a>
         {% if is_logged_in %}
         <a href="{{ url_for('my_orders') }}">My Orders</a>
         {% endif %}
@@ -51,8 +51,14 @@
         <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke-linecap="round"/></svg>
       </a>
       {% endif %}
-      <button class="hamburger-btn" id="hamburgerBtn" aria-label="Open menu">
-        <span></span><span></span><span></span>
+      
+      <!-- Updated Hamburger Button with SVG Icon -->
+      <button class="hamburger-btn icon-btn" id="hamburgerBtn" aria-label="Open menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="6" x2="20" y2="6"></line>
+          <line x1="10" y1="12" x2="20" y2="12"></line>
+          <line x1="6" y1="18" x2="20" y2="18"></line>
+        </svg>
       </button>
     </div>
   </div>
@@ -69,8 +75,8 @@
     <input type="text" name="q" placeholder="Search gadgets…">
   </form>
   <div class="mobile-menu-links">
-	<a href="{{ url_for('about') }}">About <span>→</span></a>
-    <a href="{{ url_for('index') }}">Shop <span>→</span></a>
+    <a href="{{ url_for('about') }}">About <span>→</span></a>
+    <a href="#shop">Shop <span>→</span></a>
     <a href="{{ url_for('cart') }}">Cart {% if cart_count > 0 %}({{ cart_count }}){% endif %} <span>→</span></a>
     {% if is_logged_in %}
     <a href="{{ url_for('my_orders') }}">My Orders <span>→</span></a>
@@ -81,8 +87,6 @@
     {% endif %}
     {% if is_admin %}
     <a href="{{ url_for('admin_dashboard') }}" class="admin-link">Admin Panel <span>→</span></a>
-    {% else %}
-    <a href="{{ url_for('login') }}" class="admin-link">Admin Login <span>→</span></a>
     {% endif %}
   </div>
   <div class="mobile-menu-foot">
@@ -132,14 +136,13 @@
       <div>
         <h4>Support</h4>
         <a href="https://wa.me/{{ whatsapp_number }}" target="_blank" rel="noopener">WhatsApp Us</a>
-		<a href="{{ url_for('about') }}">About Us</a>
-			
+        <a href="{{ url_for('about') }}">About Us</a>
       </div>
     </div>
     <div class="footer-bottom">
       <span>&copy; {{ 2026 }} GadgetGuru. All rights reserved.</span>
       <span>Owner: Roman Shaikh/Imroz Shaikh</span>
-	  <span>Devloped By Ayaan Shaikh</span>
+      <span>Developed By Ayaan Shaikh</span>
     </div>
   </div>
 </footer>

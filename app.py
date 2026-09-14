@@ -649,11 +649,16 @@ def admin_edit_product(product_id):
 @admin_required
 def admin_delete_product(product_id):
     db = get_db()
+    
+    # 1. Clear linked order items if foreign keys are not configured to CASCADE
+    db.execute("DELETE FROM order_items WHERE product_id = ?", (product_id,))
+    
+    # 2. Delete product record
     db.execute("DELETE FROM products WHERE id = ?", (product_id,))
+    
     db.commit()
-    flash("Product deleted.", "success")
+    flash("Product deleted successfully.", "success")
     return redirect(url_for('admin_products'))
-
 
 @app.route('/admin/orders')
 @admin_required
@@ -717,6 +722,43 @@ def admin_customers():
 def admin_settings():
     return render_template('admin_settings.html', upi_id=UPI_ID, payee_name=PAYEE_NAME,
                             whatsapp_number=WHATSAPP_NUMBER)
+
+@app.route('/admin/customers/delete/<int:user_id>', methods=['POST'])
+@admin_required
+def delete_customer(user_id):
+    db = get_db()
+    
+    # 1. Get all order IDs belonging to this user
+    orders = db.execute("SELECT id FROM orders WHERE user_id = ?", (user_id,)).fetchall()
+    
+    # 2. Delete items linked to those orders (if you have an order_items table)
+    for order in orders:
+        db.execute("DELETE FROM order_items WHERE order_id = ?", (order['id'],))
+    
+    # 3. Delete the user's orders
+    db.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
+    
+    # 4. Finally, delete the customer record
+    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    
+    db.commit()
+    flash("Customer and all related records deleted successfully.", "success")
+    return redirect(url_for('admin_customers'))
+
+@app.route('/admin/orders/delete/<int:order_id>', methods=['POST'])
+@admin_required
+def delete_order(order_id):
+    db = get_db()
+    
+    # 1. Delete order items (if stored in a separate table like order_items)
+    db.execute("DELETE FROM order_items WHERE order_id = ?", (order_id,))
+    
+    # 2. Delete the order entry
+    db.execute("DELETE FROM orders WHERE id = ?", (order_id,))
+    
+    db.commit()
+    flash("Order deleted successfully.", "success")
+    return redirect(url_for('admin_orders'))
 
 # ------------------------------------------------------------------
 # STATIC FILE HELPERS

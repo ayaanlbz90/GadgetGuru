@@ -7,7 +7,7 @@
 </div>
 
 <div class="panel">
-  {% if customers %}
+  {% if customers and customers|length > 0 %}
   <div class="table-card" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
     <table class="data-table">
       <thead>
@@ -16,24 +16,43 @@
           <th>Name</th>
           <th>Email</th>
           <th>Phone</th>
+          <th>Orders</th>
+          <th>Total Spent</th>
           <th>Joined</th>
+          <th>Action</th> <!-- Added Action Header -->
         </tr>
       </thead>
       <tbody>
-        {% for user in customers %}
+        {% for item in customers %}
+        {% set u = item.user %}
         <tr>
-          <td>#{{ user['id'] }}</td>
-          <td><strong>{{ user['name'] }}</strong></td>
-          <td>{{ user['email'] }}</td>
-          <td>{{ user['phone'] or 'N/A' }}</td>
-          <td style="white-space: nowrap;">{{ user['created_at'] }}</td>
+          <td>#{{ u['id'] }}</td>
+          <td><strong>{{ u['name'] or 'N/A' }}</strong></td>
+          <td>{{ u['email'] or 'N/A' }}</td>
+          <td>{{ u['phone'] or 'N/A' }}</td>
+          <td><span class="status-pill status-shipped">{{ item.order_count }} orders</span></td>
+          <td><strong>₹{{ "%.2f"|format(item.total_spent) }}</strong></td>
+          <td style="white-space: nowrap; font-variant-numeric: tabular-nums;">
+            {{ u['created_at'][:10] if u['created_at'] else 'N/A' }}
+          </td>
+          
+          <!-- Delete Action Form -->
+          <td>
+            <form action="{{ url_for('delete_customer', user_id=u['id']) }}" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this customer and all their orders?');">
+              <button type="submit" class="btn-delete" style="background:none; border:none; color: #e63946; cursor:pointer; padding: 4px 8px; font-weight: 600;">
+                Delete
+              </button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% else %}
-  <p style="color: #718096;">No registered customers yet.</p>
+  <div class="empty-state">
+    <p style="color: var(--steel-dark); padding: 20px 0;">No registered customers yet.</p>
+  </div>
   {% endif %}
 </div>
 {% endblock %}
