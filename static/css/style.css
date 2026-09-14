@@ -926,17 +926,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* ---- Tablet and below: switch to mobile nav, stack main layouts ---- */
 @media (max-width: 980px) {
   .nav-desktop { display: none; }
-  .hamburger-btn {
-  display: none;
-  width: 44px;
-  height: 44px;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-}
+  .hamburger-btn { display: flex; }
   .nav-actions { gap: 4px; }
 
   .hero-inner { grid-template-columns: 1fr; text-align: center; padding: 52px 24px 60px; }
