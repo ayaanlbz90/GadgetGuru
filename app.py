@@ -9,7 +9,6 @@ Then open: http://127.0.0.1:5000
 """
 
 import os
-import sqlite3
 import io
 import base64
 from datetime import datetime
@@ -17,16 +16,17 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, g, send_from_directory, jsonify
+    session, flash, send_from_directory, jsonify
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from flask_sqlalchemy import SQLAlchemy
 
 # QR code generation for UPI payments
 import qrcode
 
 # ------------------------------------------------------------------
-# CONFIGURATION  ----  EDIT THIS SECTION FOR YOUR OWN BUSINESS
+# CONFIGURATION    ----  EDIT THIS SECTION FOR YOUR OWN BUSINESS
 # ------------------------------------------------------------------
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'gadgetguru-secret-key-change-this-in-production')
@@ -34,16 +34,26 @@ app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # 8 MB max upload
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
-DATABASE = 'gadgetguru.db'
+# ---- DATABASE CONFIGURATION (Supports SQLite & PostgreSQL) ----
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # Fix Render's 'postgres://' prefix for SQLAlchemy compatibility
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gadgetguru.db'
+
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
 # ---- ADMIN LOGIN (hardcoded as requested) ----
 ADMIN_EMAIL = "ayaan@gadgetguru.com"
 ADMIN_PASSWORD = "password2007"
 
 # ---- PAYMENT SETTINGS -------------------------------------------------
-# >>> PUT YOUR OWN UPI ID AND DETAILS HERE <
 UPI_ID = "shaikh.imroz2@ibl"          # <-- CHANGE THIS to your real UPI ID
-PAYEE_NAME = "GadgetGuru"                  # <-- CHANGE THIS to your business/registered name
+PAYEE_NAME = "GadgetGuru"                 # <-- CHANGE THIS to your business/registered name
 USE_CUSTOM_QR_IMAGE = False
 CUSTOM_QR_IMAGE_PATH = "QRIM.png"
 
@@ -51,7 +61,6 @@ CUSTOM_QR_IMAGE_PATH = "QRIM.png"
 WHATSAPP_NUMBER = "919558533117"           # <-- CHANGE THIS
 WHATSAPP_DEFAULT_MSG = "Hi GadgetGuru! I have a question about a product."
 # ---- BUSINESS / CONTACT INFO (shown on the About page) ---------------
-# >>> EDIT THESE WITH YOUR REAL DETAILS <
 BUSINESS_ADDRESS = "FoneBook, Near TownHall, Kapadvanj, Gujarat, India"
 CONTACT_EMAIL = "ayanshai414@gmail.com"
 CONTACT_PHONE_DISPLAY = "+91 9558533117"
@@ -59,112 +68,98 @@ BUSINESS_HOURS = "Mon - San, 10:00 AM - 8:00 PM"
 
 
 # ------------------------------------------------------------------
-# DATABASE HELPERS
+# DATABASE MODELS
 # ------------------------------------------------------------------
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA foreign_keys = ON")
-    return db
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    email = db.Column(db.String, unique=True, nullable=False)
+    password = db.Column(db.String, nullable=False)
+    phone = db.Column(db.String)
+    address = db.Column(db.Text)
+    created_at = db.Column(db.String, nullable=False)
+    orders = db.relationship('Order', backref='user', lazy=True, cascade='all, delete-orphan')
 
+class Product(db.Model):
+    __tablename__ = 'products'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    description = db.Column(db.Text)
+    price = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String)
+    stock = db.Column(db.Integer, default=0)
+    image_filename = db.Column(db.String)
+    created_at = db.Column(db.String, nullable=False)
 
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
+class Order(db.Model):
+    __tablename__ = 'orders'
+    id = db.Column(db.Integer, primary_key=True)
+    receipt_no = db.Column(db.String, unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String, nullable=False)
+    payment_status = db.Column(db.String, default='Pending')
+    order_status = db.Column(db.String, default='Processing')
+    shipping_name = db.Column(db.String)
+    shipping_phone = db.Column(db.String)
+    shipping_address = db.Column(db.Text)
+    order_date = db.Column(db.String, nullable=False)
+    items = db.relationship('OrderItem', backref='order', lazy=True, cascade='all, delete-orphan')
+
+class OrderItem(db.Model):
+    __tablename__ = 'order_items'
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    product_id = db.Column(db.Integer)
+    product_name = db.Column(db.String, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
 
 
 def init_db():
-    first_run = not os.path.exists(DATABASE)
-    db = sqlite3.connect(DATABASE)
-    cur = db.cursor()
-    cur.executescript("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        phone TEXT,
-        address TEXT,
-        created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        price REAL NOT NULL,
-        category TEXT,
-        stock INTEGER DEFAULT 0,
-        image_filename TEXT,
-        created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        receipt_no TEXT UNIQUE NOT NULL,
-        user_id INTEGER NOT NULL,
-        total_amount REAL NOT NULL,
-        payment_method TEXT NOT NULL,
-        payment_status TEXT DEFAULT 'Pending',
-        order_status TEXT DEFAULT 'Processing',
-        shipping_name TEXT,
-        shipping_phone TEXT,
-        shipping_address TEXT,
-        order_date TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    );
-
-    CREATE TABLE IF NOT EXISTS order_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id INTEGER NOT NULL,
-        product_id INTEGER,
-        product_name TEXT NOT NULL,
-        price REAL NOT NULL,
-        quantity INTEGER NOT NULL,
-        FOREIGN KEY (order_id) REFERENCES orders (id)
-    );
-    """)
-    db.commit()
-
-    if first_run:
-        demo_products = [
-            ("Nova X1 Wireless Earbuds",
-             "Crisp active-noise-cancelling earbuds with 30-hour battery life, "
-             "touch controls and deep bass tuning. Perfect for daily commutes.",
-             2499.0, "Audio", 25),
-            ("PulseFit Smartwatch",
-             "AMOLED smartwatch with heart-rate & SpO2 tracking, 7-day battery, "
-             "100+ sport modes, and full call/notification support.",
-             3799.0, "Wearables", 18),
-            ("ThunderBolt 65W GaN Charger",
-             "Compact 65W GaN fast charger with 3 ports, charges laptop, phone "
-             "and tablet simultaneously. Travel-friendly and heat-efficient.",
-             1299.0, "Accessories", 40),
-            ("AeroCam 4K Action Camera",
-             "Waterproof 4K60 action camera with gimbal-grade stabilization, "
-             "voice control and a rugged mounting kit included.",
-             6499.0, "Cameras", 12),
-            ("EchoBeam Bluetooth Speaker",
-             "360-degree party speaker with RGB light show, 20W output and "
-             "IPX6 splash resistance for indoor or outdoor use.",
-             1999.0, "Audio", 30),
-            ("GigaPower 20000mAh Power Bank",
-             "Slim 20000mAh power bank with 22.5W fast charge, dual USB-A and "
-             "USB-C output, digital charge display.",
-             1599.0, "Accessories", 50),
-        ]
-        for p in demo_products:
-            cur.execute(
-                "INSERT INTO products (name, description, price, category, stock, "
-                "image_filename, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (*p, None, datetime.now().isoformat())
-            )
-        db.commit()
-    db.close()
+    with app.app_context():
+        db.create_all()
+        # Seed demo products if products table is empty
+        if Product.query.count() == 0:
+            demo_products = [
+                ("Nova X1 Wireless Earbuds",
+                 "Crisp active-noise-cancelling earbuds with 30-hour battery life, "
+                 "touch controls and deep bass tuning. Perfect for daily commutes.",
+                 2499.0, "Audio", 25),
+                ("PulseFit Smartwatch",
+                 "AMOLED smartwatch with heart-rate & SpO2 tracking, 7-day battery, "
+                 "100+ sport modes, and full call/notification support.",
+                 3799.0, "Wearables", 18),
+                ("ThunderBolt 65W GaN Charger",
+                 "Compact 65W GaN fast charger with 3 ports, charges laptop, phone "
+                 "and tablet simultaneously. Travel-friendly and heat-efficient.",
+                 1299.0, "Accessories", 40),
+                ("AeroCam 4K Action Camera",
+                 "Waterproof 4K60 action camera with gimbal-grade stabilization, "
+                 "voice control and a rugged mounting kit included.",
+                 6499.0, "Cameras", 12),
+                ("EchoBeam Bluetooth Speaker",
+                 "360-degree party speaker with RGB light show, 20W output and "
+                 "IPX6 splash resistance for indoor or outdoor use.",
+                 1999.0, "Audio", 30),
+                ("GigaPower 20000mAh Power Bank",
+                 "Slim 20000mAh power bank with 22.5W fast charge, dual USB-A and "
+                 "USB-C output, digital charge display.",
+                 1599.0, "Accessories", 50),
+            ]
+            for p in demo_products:
+                prod = Product(
+                    name=p[0],
+                    description=p[1],
+                    price=p[2],
+                    category=p[3],
+                    stock=p[4],
+                    image_filename=None,
+                    created_at=datetime.now().isoformat()
+                )
+                db.session.add(prod)
+            db.session.commit()
 
 
 def allowed_file(filename):
@@ -216,35 +211,29 @@ def inject_globals():
 # ------------------------------------------------------------------
 @app.route('/')
 def index():
-    db = get_db()
-    products = db.execute("SELECT * FROM products ORDER BY created_at DESC").fetchall()
-    categories = sorted(set(p['category'] for p in products if p['category']))
+    products = Product.query.order_by(Product.created_at.desc()).all()
+    categories = sorted(set(p.category for p in products if p.category))
     return render_template('index.html', products=products, categories=categories)
 
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):
-    db = get_db()
-    product = db.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    product = Product.query.get(product_id)
     if not product:
         flash("Product not found.", "error")
         return redirect(url_for('index'))
-    related = db.execute(
-        "SELECT * FROM products WHERE category = ? AND id != ? LIMIT 4",
-        (product['category'], product_id)
-    ).fetchall()
+    related = Product.query.filter(Product.category == product.category, Product.id != product_id).limit(4).all()
     return render_template('product_detail.html', product=product, related=related)
 
 
 @app.route('/search')
 def search():
     query = request.args.get('q', '').strip()
-    db = get_db()
     if query:
-        products = db.execute(
-            "SELECT * FROM products WHERE name LIKE ? OR description LIKE ? ORDER BY created_at DESC",
-            (f"%{query}%", f"%{query}%")
-        ).fetchall()
+        search_filter = f"%{query}%"
+        products = Product.query.filter(
+            (Product.name.ilike(search_filter)) | (Product.description.ilike(search_filter))
+        ).order_by(Product.created_at.desc()).all()
     else:
         products = []
     return render_template('index.html', products=products, categories=[], search_query=query)
@@ -265,14 +254,13 @@ def about():
 # ------------------------------------------------------------------
 @app.route('/cart')
 def cart():
-    db = get_db()
     cart_session = session.get('cart', {})
     items = []
     total = 0
     for pid, entry in cart_session.items():
-        product = db.execute("SELECT * FROM products WHERE id = ?", (pid,)).fetchone()
+        product = Product.query.get(int(pid))
         if product:
-            subtotal = product['price'] * entry['quantity']
+            subtotal = product.price * entry['quantity']
             total += subtotal
             items.append({'product': product, 'quantity': entry['quantity'], 'subtotal': subtotal})
     return render_template('cart.html', items=items, total=total)
@@ -280,8 +268,7 @@ def cart():
 
 @app.route('/cart/add/<int:product_id>', methods=['POST'])
 def add_to_cart(product_id):
-    db = get_db()
-    product = db.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    product = Product.query.get(product_id)
     if not product:
         flash("Product not found.", "error")
         return redirect(url_for('index'))
@@ -295,7 +282,7 @@ def add_to_cart(product_id):
         cart_session[key] = {'quantity': qty}
     session['cart'] = cart_session
     session.modified = True
-    flash(f"Added \"{product['name']}\" to your cart.", "success")
+    flash(f"Added \"{product.name}\" to your cart.", "success")
     return redirect(request.referrer or url_for('index'))
 
 
@@ -340,21 +327,24 @@ def signup():
             flash("Please fill in all required fields.", "error")
             return redirect(url_for('signup'))
 
-        db = get_db()
-        existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        existing = User.query.filter_by(email=email).first()
         if existing:
             flash("An account with this email already exists.", "error")
             return redirect(url_for('signup'))
 
-        db.execute(
-            "INSERT INTO users (name, email, password, phone, address, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (name, email, generate_password_hash(password), phone, address, datetime.now().isoformat())
+        new_user = User(
+            name=name,
+            email=email,
+            password=generate_password_hash(password),
+            phone=phone,
+            address=address,
+            created_at=datetime.now().isoformat()
         )
-        db.commit()
-        user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        session['user_id'] = user['id']
-        session['user_name'] = user['name']
+        db.session.add(new_user)
+        db.session.commit()
+
+        session['user_id'] = new_user.id
+        session['user_name'] = new_user.name
         flash(f"Welcome to GadgetGuru, {name}!", "success")
         return redirect(url_for('index'))
 
@@ -367,21 +357,17 @@ def login():
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
 
-        # If the credentials match the admin account, log in as admin and
-        # send them straight to the admin panel. Everyone else logs in as
-        # a normal customer. There is no separate admin login page anymore.
         if email == ADMIN_EMAIL.lower() and password == ADMIN_PASSWORD:
             session['is_admin'] = True
             session['admin_email'] = email
             flash("Welcome back, Admin.", "success")
             return redirect(url_for('admin_dashboard'))
 
-        db = get_db()
-        user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        if user and check_password_hash(user['password'], password):
-            session['user_id'] = user['id']
-            session['user_name'] = user['name']
-            flash(f"Welcome back, {user['name']}!", "success")
+        user = User.query.filter_by(email=email).first()
+        if user and check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            session['user_name'] = user.name
+            flash(f"Welcome back, {user.name}!", "success")
             next_url = request.args.get('next') or url_for('index')
             return redirect(next_url)
         flash("Invalid email or password.", "error")
@@ -407,13 +393,14 @@ def admin_logout():
     session.pop('admin_email', None)
     flash("You have been logged out.", "success")
     return redirect(url_for('index'))
+
+
 # ------------------------------------------------------------------
 # CHECKOUT / PAYMENT / RECEIPT
 # ------------------------------------------------------------------
 @app.route('/checkout', methods=['GET', 'POST'])
 @login_required
 def checkout():
-    db = get_db()
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", "error")
@@ -422,45 +409,51 @@ def checkout():
     items = []
     total = 0
     for pid, entry in cart_session.items():
-        product = db.execute("SELECT * FROM products WHERE id = ?", (pid,)).fetchone()
+        product = Product.query.get(int(pid))
         if product:
-            subtotal = product['price'] * entry['quantity']
+            subtotal = product.price * entry['quantity']
             total += subtotal
             items.append({'product': product, 'quantity': entry['quantity'], 'subtotal': subtotal})
 
-    user = db.execute("SELECT * FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+    user = User.query.get(session['user_id'])
 
     if request.method == 'POST':
-        name = request.form.get('shipping_name', user['name'])
-        phone = request.form.get('shipping_phone', user['phone'])
-        address = request.form.get('shipping_address', user['address'])
-
-        # NOTE: Cash on Delivery is temporarily disabled. Only UPI is accepted
-        # for now, regardless of what's submitted. To re-enable COD, remove
-        # this override and re-enable the radio button in checkout.html.
+        name = request.form.get('shipping_name', user.name)
+        phone = request.form.get('shipping_phone', user.phone)
+        address = request.form.get('shipping_address', user.address)
         payment_method = 'UPI'
 
         receipt_no = "GG" + datetime.now().strftime("%Y%m%d%H%M%S")
-        db.execute(
-            "INSERT INTO orders (receipt_no, user_id, total_amount, payment_method, "
-            "payment_status, order_status, shipping_name, shipping_phone, shipping_address, order_date) "
-            "VALUES (?, ?, ?, ?, 'Pending', 'Processing', ?, ?, ?, ?)",
-            (receipt_no, user['id'], total, payment_method, name, phone, address, datetime.now().isoformat())
+        new_order = Order(
+            receipt_no=receipt_no,
+            user_id=user.id,
+            total_amount=total,
+            payment_method=payment_method,
+            payment_status='Pending',
+            order_status='Processing',
+            shipping_name=name,
+            shipping_phone=phone,
+            shipping_address=address,
+            order_date=datetime.now().isoformat()
         )
-        order_id = db.execute("SELECT id FROM orders WHERE receipt_no = ?", (receipt_no,)).fetchone()['id']
+        db.session.add(new_order)
+        db.session.commit()
 
         for item in items:
-            db.execute(
-                "INSERT INTO order_items (order_id, product_id, product_name, price, quantity) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (order_id, item['product']['id'], item['product']['name'], item['product']['price'], item['quantity'])
+            order_item = OrderItem(
+                order_id=new_order.id,
+                product_id=item['product'].id,
+                product_name=item['product'].name,
+                price=item['product'].price,
+                quantity=item['quantity']
             )
-        db.commit()
+            db.session.add(order_item)
+        db.session.commit()
 
         session['cart'] = {}
         session.modified = True
-        session['last_order_id'] = order_id
-        return redirect(url_for('payment', order_id=order_id))
+        session['last_order_id'] = new_order.id
+        return redirect(url_for('payment', order_id=new_order.id))
 
     return render_template('checkout.html', items=items, total=total, user=user)
 
@@ -468,22 +461,19 @@ def checkout():
 @app.route('/payment/<int:order_id>')
 @login_required
 def payment(order_id):
-    db = get_db()
-    order = db.execute("SELECT * FROM orders WHERE id = ? AND user_id = ?",
-                        (order_id, session['user_id'])).fetchone()
+    order = Order.query.filter_by(id=order_id, user_id=session['user_id']).first()
     if not order:
         flash("Order not found.", "error")
         return redirect(url_for('index'))
     return render_template('payment.html', order=order, upi_id=UPI_ID, payee_name=PAYEE_NAME,
-                            use_custom_qr=USE_CUSTOM_QR_IMAGE, custom_qr_path=CUSTOM_QR_IMAGE_PATH)
+                           use_custom_qr=USE_CUSTOM_QR_IMAGE, custom_qr_path=CUSTOM_QR_IMAGE_PATH)
 
 
 @app.route('/payment/<int:order_id>/qr.png')
 def payment_qr(order_id):
     """Dynamically generate a scannable UPI QR code for this order's amount."""
-    db = get_db()
-    order = db.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
-    amount = order['total_amount'] if order else 0
+    order = Order.query.get(order_id)
+    amount = order.total_amount if order else 0
     upi_link = (
         f"upi://pay?pa={UPI_ID}&pn={PAYEE_NAME.replace(' ', '%20')}"
         f"&am={amount:.2f}&cu=INR&tn=GadgetGuruOrder{order_id}"
@@ -498,15 +488,12 @@ def payment_qr(order_id):
 @app.route('/payment/<int:order_id>/confirm', methods=['POST'])
 @login_required
 def confirm_payment(order_id):
-    db = get_db()
-    order = db.execute("SELECT * FROM orders WHERE id = ? AND user_id = ?",
-                        (order_id, session['user_id'])).fetchone()
+    order = Order.query.filter_by(id=order_id, user_id=session['user_id']).first()
     if not order:
         flash("Order not found.", "error")
         return redirect(url_for('index'))
-    # Customer confirms they've paid; admin will verify & mark as Paid in the admin panel.
-    db.execute("UPDATE orders SET payment_status = 'Awaiting Verification' WHERE id = ?", (order_id,))
-    db.commit()
+    order.payment_status = 'Awaiting Verification'
+    db.session.commit()
     flash("Thanks! We'll verify your payment shortly.", "success")
     return redirect(url_for('receipt', order_id=order_id))
 
@@ -514,32 +501,23 @@ def confirm_payment(order_id):
 @app.route('/receipt/<int:order_id>')
 @login_required
 def receipt(order_id):
-    db = get_db()
-    order = db.execute("SELECT * FROM orders WHERE id = ? AND user_id = ?",
-                        (order_id, session['user_id'])).fetchone()
+    order = Order.query.filter_by(id=order_id, user_id=session['user_id']).first()
     if not order:
         flash("Order not found.", "error")
         return redirect(url_for('index'))
 
-    # The receipt only unlocks once the customer has scanned the QR, paid,
-    # and confirmed it on the payment page (payment_status moves away from
-    # "Pending" at that point). Anyone trying to jump straight to the
-    # receipt URL without paying gets sent back to the payment page instead.
-    if order['payment_status'] == 'Pending':
+    if order.payment_status == 'Pending':
         flash("Please complete your payment first.", "error")
         return redirect(url_for('payment', order_id=order_id))
 
-    items = db.execute("SELECT * FROM order_items WHERE order_id = ?", (order_id,)).fetchall()
+    items = OrderItem.query.filter_by(order_id=order_id).all()
     return render_template('receipt.html', order=order, items=items)
 
 
 @app.route('/my-orders')
 @login_required
 def my_orders():
-    db = get_db()
-    orders = db.execute(
-        "SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC", (session['user_id'],)
-    ).fetchall()
+    orders = Order.query.filter_by(user_id=session['user_id']).order_by(Order.order_date.desc()).all()
     return render_template('my_orders.html', orders=orders)
 
 
@@ -549,29 +527,33 @@ def my_orders():
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
-    db = get_db()
-    total_products = db.execute("SELECT COUNT(*) c FROM products").fetchone()['c']
-    total_orders = db.execute("SELECT COUNT(*) c FROM orders").fetchone()['c']
-    total_users = db.execute("SELECT COUNT(*) c FROM users").fetchone()['c']
-    total_revenue = db.execute(
-        "SELECT COALESCE(SUM(total_amount), 0) s FROM orders WHERE payment_status != 'Pending'"
-    ).fetchone()['s']
-    recent_orders = db.execute(
-        "SELECT o.*, u.name AS customer_name, u.email AS customer_email "
-        "FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.order_date DESC LIMIT 6"
-    ).fetchall()
-    low_stock = db.execute("SELECT * FROM products WHERE stock <= 5 ORDER BY stock ASC").fetchall()
+    total_products = Product.query.count()
+    total_orders = Order.query.count()
+    total_users = User.query.count()
+    
+    revenue_result = db.session.query(db.func.coalesce(db.func.sum(Order.total_amount), 0)).filter(Order.payment_status != 'Pending').scalar()
+    total_revenue = revenue_result if revenue_result else 0.0
+
+    recent_orders = db.session.query(Order, User).join(User, Order.user_id == User.id).order_by(Order.order_date.desc()).limit(6).all()
+    
+    # Flatten recent orders structure for the template
+    formatted_recent_orders = []
+    for ord_obj, usr_obj in recent_orders:
+        ord_obj.customer_name = usr_obj.name
+        ord_obj.customer_email = usr_obj.email
+        formatted_recent_orders.append(ord_obj)
+
+    low_stock = Product.query.filter(Product.stock <= 5).order_by(Product.stock.asc()).all()
     return render_template('admin_dashboard.html', total_products=total_products,
-                            total_orders=total_orders, total_users=total_users,
-                            total_revenue=total_revenue, recent_orders=recent_orders,
-                            low_stock=low_stock)
+                           total_orders=total_orders, total_users=total_users,
+                           total_revenue=total_revenue, recent_orders=formatted_recent_orders,
+                           low_stock=low_stock)
 
 
 @app.route('/admin/products')
 @admin_required
 def admin_products():
-    db = get_db()
-    products = db.execute("SELECT * FROM products ORDER BY created_at DESC").fetchall()
+    products = Product.query.order_by(Product.created_at.desc()).all()
     return render_template('admin_products.html', products=products)
 
 
@@ -597,13 +579,17 @@ def admin_add_product():
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             image_filename = filename
 
-        db = get_db()
-        db.execute(
-            "INSERT INTO products (name, description, price, category, stock, image_filename, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (name, description, float(price), category, int(stock or 0), image_filename, datetime.now().isoformat())
+        new_product = Product(
+            name=name,
+            description=description,
+            price=float(price),
+            category=category,
+            stock=int(stock or 0),
+            image_filename=image_filename,
+            created_at=datetime.now().isoformat()
         )
-        db.commit()
+        db.session.add(new_product)
+        db.session.commit()
         flash(f"Product \"{name}\" added successfully.", "success")
         return redirect(url_for('admin_products'))
 
@@ -613,33 +599,27 @@ def admin_add_product():
 @app.route('/admin/products/edit/<int:product_id>', methods=['GET', 'POST'])
 @admin_required
 def admin_edit_product(product_id):
-    db = get_db()
-    product = db.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    product = Product.query.get(product_id)
     if not product:
         flash("Product not found.", "error")
         return redirect(url_for('admin_products'))
 
     if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        description = request.form.get('description', '').strip()
-        price = request.form.get('price', '0')
-        category = request.form.get('category', '').strip()
-        stock = request.form.get('stock', '0')
+        product.name = request.form.get('name', '').strip()
+        product.description = request.form.get('description', '').strip()
+        product.price = float(request.form.get('price', '0'))
+        product.category = request.form.get('category', '').strip()
+        product.stock = int(request.form.get('stock', '0') or 0)
 
-        image_filename = product['image_filename']
         file = request.files.get('image')
         if file and file.filename and allowed_file(file.filename):
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
             filename = secure_filename(f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            image_filename = filename
+            product.image_filename = filename
 
-        db.execute(
-            "UPDATE products SET name=?, description=?, price=?, category=?, stock=?, image_filename=? WHERE id=?",
-            (name, description, float(price), category, int(stock or 0), image_filename, product_id)
-        )
-        db.commit()
-        flash(f"Product \"{name}\" updated.", "success")
+        db.session.commit()
+        flash(f"Product \"{product.name}\" updated.", "success")
         return redirect(url_for('admin_products'))
 
     return render_template('admin_edit_product.html', product=product)
@@ -648,72 +628,70 @@ def admin_edit_product(product_id):
 @app.route('/admin/products/delete/<int:product_id>', methods=['POST'])
 @admin_required
 def admin_delete_product(product_id):
-    db = get_db()
-    
-    # 1. Clear linked order items if foreign keys are not configured to CASCADE
-    db.execute("DELETE FROM order_items WHERE product_id = ?", (product_id,))
-    
-    # 2. Delete product record
-    db.execute("DELETE FROM products WHERE id = ?", (product_id,))
-    
-    db.commit()
-    flash("Product deleted successfully.", "success")
+    product = Product.query.get(product_id)
+    if product:
+        # Clear linked order items manually if needed, or rely on cascade
+        OrderItem.query.filter_by(product_id=product_id).delete()
+        db.session.delete(product)
+        db.session.commit()
+        flash("Product deleted successfully.", "success")
     return redirect(url_for('admin_products'))
+
 
 @app.route('/admin/orders')
 @admin_required
 def admin_orders():
-    db = get_db()
-    orders = db.execute(
-        "SELECT o.*, u.name AS customer_name, u.email AS customer_email, u.phone AS customer_phone "
-        "FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.order_date DESC"
-    ).fetchall()
-    return render_template('admin_orders.html', orders=orders)
+    orders = db.session.query(Order, User).join(User, Order.user_id == User.id).order_by(Order.order_date.desc()).all()
+    formatted_orders = []
+    for ord_obj, usr_obj in orders:
+        ord_obj.customer_name = usr_obj.name
+        ord_obj.customer_email = usr_obj.email
+        ord_obj.customer_phone = usr_obj.phone
+        formatted_orders.append(ord_obj)
+    return render_template('admin_orders.html', orders=formatted_orders)
 
 
 @app.route('/admin/orders/<int:order_id>')
 @admin_required
 def admin_order_detail(order_id):
-    db = get_db()
-    order = db.execute(
-        "SELECT o.*, u.name AS customer_name, u.email AS customer_email, u.phone AS customer_phone, "
-        "u.address AS customer_address FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = ?",
-        (order_id,)
-    ).fetchone()
-    if not order:
+    result = db.session.query(Order, User).join(User, Order.user_id == User.id).filter(Order.id == order_id).first()
+    if not result:
         flash("Order not found.", "error")
         return redirect(url_for('admin_orders'))
-    items = db.execute("SELECT * FROM order_items WHERE order_id = ?", (order_id,)).fetchall()
+    
+    order, user = result
+    order.customer_name = user.name
+    order.customer_email = user.email
+    order.customer_phone = user.phone
+    order.customer_address = user.address
+
+    items = OrderItem.query.filter_by(order_id=order_id).all()
     return render_template('admin_order_detail.html', order=order, items=items)
 
 
 @app.route('/admin/orders/<int:order_id>/update', methods=['POST'])
 @admin_required
 def admin_update_order(order_id):
-    payment_status = request.form.get('payment_status')
-    order_status = request.form.get('order_status')
-    db = get_db()
-    db.execute(
-        "UPDATE orders SET payment_status = ?, order_status = ? WHERE id = ?",
-        (payment_status, order_status, order_id)
-    )
-    db.commit()
-    flash("Order updated.", "success")
+    order = Order.query.get(order_id)
+    if order:
+        order.payment_status = request.form.get('payment_status')
+        order.order_status = request.form.get('order_status')
+        db.session.commit()
+        flash("Order updated.", "success")
     return redirect(url_for('admin_order_detail', order_id=order_id))
 
 
 @app.route('/admin/customers')
 @admin_required
 def admin_customers():
-    db = get_db()
-    customers = db.execute("SELECT * FROM users ORDER BY created_at DESC").fetchall()
+    customers = User.query.order_by(User.created_at.desc()).all()
     customers_with_stats = []
     for c in customers:
-        stats = db.execute(
-            "SELECT COUNT(*) c, COALESCE(SUM(total_amount),0) s FROM orders WHERE user_id = ?",
-            (c['id'],)
-        ).fetchone()
-        customers_with_stats.append({'user': c, 'order_count': stats['c'], 'total_spent': stats['s']})
+        stats = db.session.query(
+            db.func.count(Order.id),
+            db.func.coalesce(db.func.sum(Order.total_amount), 0)
+        ).filter(Order.user_id == c.id).first()
+        customers_with_stats.append({'user': c, 'order_count': stats[0], 'total_spent': stats[1]})
     return render_template('admin_customers.html', customers=customers_with_stats)
 
 
@@ -721,44 +699,30 @@ def admin_customers():
 @admin_required
 def admin_settings():
     return render_template('admin_settings.html', upi_id=UPI_ID, payee_name=PAYEE_NAME,
-                            whatsapp_number=WHATSAPP_NUMBER)
+                           whatsapp_number=WHATSAPP_NUMBER)
+
 
 @app.route('/admin/customers/delete/<int:user_id>', methods=['POST'])
 @admin_required
 def delete_customer(user_id):
-    db = get_db()
-    
-    # 1. Get all order IDs belonging to this user
-    orders = db.execute("SELECT id FROM orders WHERE user_id = ?", (user_id,)).fetchall()
-    
-    # 2. Delete items linked to those orders (if you have an order_items table)
-    for order in orders:
-        db.execute("DELETE FROM order_items WHERE order_id = ?", (order['id'],))
-    
-    # 3. Delete the user's orders
-    db.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
-    
-    # 4. Finally, delete the customer record
-    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    
-    db.commit()
-    flash("Customer and all related records deleted successfully.", "success")
+    user = User.query.get(user_id)
+    if user:
+        db.session.delete(user) # Cascade will handle orders and order_items
+        db.session.commit()
+        flash("Customer and all related records deleted successfully.", "success")
     return redirect(url_for('admin_customers'))
+
 
 @app.route('/admin/orders/delete/<int:order_id>', methods=['POST'])
 @admin_required
 def delete_order(order_id):
-    db = get_db()
-    
-    # 1. Delete order items (if stored in a separate table like order_items)
-    db.execute("DELETE FROM order_items WHERE order_id = ?", (order_id,))
-    
-    # 2. Delete the order entry
-    db.execute("DELETE FROM orders WHERE id = ?", (order_id,))
-    
-    db.commit()
-    flash("Order deleted successfully.", "success")
+    order = Order.query.get(order_id)
+    if order:
+        db.session.delete(order) # Cascade will handle order_items
+        db.session.commit()
+        flash("Order deleted successfully.", "success")
     return redirect(url_for('admin_orders'))
+
 
 # ------------------------------------------------------------------
 # STATIC FILE HELPERS
@@ -768,10 +732,7 @@ def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
-# Initialize the database on import — this runs whether the app is started
-# with "python app.py" locally, or with Gunicorn in production (Render,
-# etc.), since Gunicorn imports this file as a module rather than running
-# the __main__ block below.
+# Initialize the database on import
 init_db()
 
 
